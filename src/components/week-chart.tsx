@@ -21,7 +21,7 @@ export function WeekChart({ entries, target }: { entries: Entry[]; target: numbe
   const targetY = (target / scale) * CHART_H
 
   return (
-    <section aria-labelledby="week-title" className="flex flex-col gap-4 rounded-[1.5rem] border bg-card p-5">
+    <section aria-labelledby="week-title" className="flex h-full flex-col justify-between gap-4 rounded-[1.5rem] border bg-card p-5 lg:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <h2 id="week-title" className="font-semibold">

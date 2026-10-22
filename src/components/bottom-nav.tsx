@@ -11,7 +11,57 @@ const NAV: { id: Tab; label: string; icon: typeof HouseIcon }[] = [
   { id: "settings", label: "الإعدادات", icon: SettingsIcon },
 ]
 
-/** A white pill of tabs with a black highlight that slides to the active one, plus the lime add button. */
+/**
+ * The white pill of tabs with a black highlight that slides to the active one.
+ * On the phone only the active tab shows its label; on the laptop all of them do.
+ */
+export function NavPill({
+  tab,
+  onTab,
+  showAllLabels = false,
+  className,
+}: {
+  tab: Tab
+  onTab: (tab: Tab) => void
+  showAllLabels?: boolean
+  className?: string
+}) {
+  return (
+    <nav
+      aria-label="التنقل"
+      className={cn("flex items-center gap-1 rounded-full border bg-card/85 p-1.5 backdrop-blur-xl", className)}
+    >
+      {NAV.map((item) => {
+        const active = item.id === tab
+        const Icon = item.icon
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onTab(item.id)}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "relative flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+              active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {active && (
+              <motion.span
+                layoutId={showAllLabels ? "nav-pill-desktop" : "nav-pill"}
+                className="absolute inset-0 rounded-full bg-primary"
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
+              />
+            )}
+            <Icon className="relative size-4.5" aria-hidden="true" />
+            <span className={cn("relative", !active && !showAllLabels && "sr-only")}>{item.label}</span>
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+/** Phone: the pill floats at the bottom next to the lime add button. */
 export function BottomNav({
   tab,
   onTab,
@@ -23,37 +73,11 @@ export function BottomNav({
 }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
-      <nav
-        aria-label="التنقل"
-        className="pointer-events-auto flex items-center gap-1 rounded-full border bg-card/85 p-1.5 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.25)] backdrop-blur-xl"
-      >
-        {NAV.map((item) => {
-          const active = item.id === tab
-          const Icon = item.icon
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onTab(item.id)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "relative flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                active ? "text-primary-foreground" : "text-muted-foreground"
-              )}
-            >
-              {active && (
-                <motion.span
-                  layoutId="nav-pill"
-                  className="absolute inset-0 -z-0 rounded-full bg-primary"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
-              )}
-              <Icon className="relative size-4.5" aria-hidden="true" />
-              <span className={cn("relative", !active && "sr-only")}>{item.label}</span>
-            </button>
-          )
-        })}
-      </nav>
+      <NavPill
+        tab={tab}
+        onTab={onTab}
+        className="pointer-events-auto shadow-[0_12px_32px_-12px_rgb(0_0_0/0.25)]"
+      />
       <button
         type="button"
         onClick={onAdd}

@@ -27,12 +27,15 @@ import { pickData, useMizan, type MizanData } from "@/store"
 export function SettingsScreen() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="pt-1 text-[1.9rem] font-bold tracking-tight">الإعدادات</h1>
-      <NameCard />
-      <BackupCard />
-      <TargetsCard />
-      <ProfileCard />
-      <ThemeCard />
+      <h1 className="pt-1 text-[1.9rem] font-bold tracking-tight lg:text-[2.6rem]">الإعدادات</h1>
+      {/* Laptop: the cards flow into two columns. */}
+      <div className="flex flex-col gap-6 lg:block lg:columns-2 lg:gap-6 lg:*:mb-6 lg:*:break-inside-avoid">
+        <NameCard />
+        <BackupCard />
+        <TargetsCard />
+        <ThemeCard />
+        <ProfileCard />
+      </div>
     </div>
   )
 }
@@ -45,7 +48,7 @@ function NameCard() {
     <Card>
       <CardHeader>
         <CardTitle>اسمك</CardTitle>
-        <CardDescription>بيظهر في التحية فوق، ومتخزن على الموبايل بس.</CardDescription>
+        <CardDescription>بيظهر في التحية فوق، ومتخزن على الجهاز ده بس.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -112,7 +115,7 @@ function BackupCard() {
       <CardHeader>
         <CardTitle>النسخة الاحتياطية</CardTitle>
         <CardDescription>
-          بياناتك متخزنة على الموبايل ده بس. اعمل نسخة كل أسبوع واختار Google Drive من قايمة المشاركة.
+          بياناتك متخزنة على الجهاز ده بس. اعمل نسخة كل أسبوع واحفظها على Google Drive، ومنها تقدر تنقلها للموبايل أو اللابتوب.
           {lastBackupAt
             ? ` آخر نسخة: ${age === 0 ? "النهارده" : formatDay(dateKey(new Date(lastBackupAt)))}.`
             : " لسه معملتش ولا نسخة."}
@@ -147,7 +150,7 @@ function BackupCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>ترجّع النسخة دي؟</AlertDialogTitle>
             <AlertDialogDescription>
-              فيها {num(pending?.entries.length ?? 0)} أكلة و{num(pending?.weights.length ?? 0)} وزن. اللي على الموبايل
+              فيها {num(pending?.entries.length ?? 0)} أكلة و{num(pending?.weights.length ?? 0)} وزن. اللي على الجهاز ده
               دلوقتي هيتشال ويتحط مكانه اللي في النسخة.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -319,7 +322,7 @@ function ThemeCard() {
           size="xl"
           className="grid w-full grid-cols-3"
         >
-          <ToggleGroupItem value="system">زي الموبايل</ToggleGroupItem>
+          <ToggleGroupItem value="system">زي الجهاز</ToggleGroupItem>
           <ToggleGroupItem value="light">فاتح</ToggleGroupItem>
           <ToggleGroupItem value="dark">غامق</ToggleGroupItem>
         </ToggleGroup>

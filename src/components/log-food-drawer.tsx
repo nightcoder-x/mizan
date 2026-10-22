@@ -1,19 +1,44 @@
-﻿import { useMemo, useState } from "react"
-import { ArrowRightIcon, MinusIcon, PlusIcon, SearchIcon, SparkleIcon } from "lucide-react"
+import { createContext, useContext, useMemo, useState } from "react"
+import {
+  ArrowRightIcon,
+  MinusIcon,
+  PlusIcon,
+  SearchIcon,
+  SparkleIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Drawer,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { Input } from "@/components/ui/input"
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@/components/ui/item"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,10 +48,12 @@ import { MacroChips } from "@/components/macro-chips"
 import { itemKcal, ParsedItems } from "@/components/parsed-items"
 import { RecipeForm } from "@/components/recipe-form"
 import type { Food } from "@/data/foods"
+import { useIsDesktop } from "@/hooks/use-media-query"
 import { allFoods, recentFoods, searchFoods } from "@/lib/foods"
 import { dateKey, num, parseNum } from "@/lib/format"
 import { scaleMacros } from "@/lib/nutrition"
 import { parseFoodText, type ParsedItem } from "@/lib/parse-food-text"
+import { cn } from "@/lib/utils"
 import { MEALS, mealForNow, useMizan, type Entry, type Meal } from "@/store"
 
 const GRAMS = "جرام"
@@ -69,65 +96,155 @@ export function LogFoodDrawer({
   }
 
   const mode: DrawerStart = "back" in view ? view.back : view.name
+  const isDesktop = useIsDesktop()
+
+  const body = (
+    <>
+      {(view.name === "pick" || view.name === "write") && (
+        <SheetHeader className="gap-3 pb-2 text-start">
+          <SheetTitle className="text-lg font-bold">سجّل أكل</SheetTitle>
+          <SheetDescription className="sr-only">
+            دوّر على الأكلة أو اكتب اللي كلته في جملة
+          </SheetDescription>
+          <Tabs
+            value={mode}
+            onValueChange={(v) => setView({ name: v as DrawerStart })}
+          >
+            <TabsList className="h-10 w-full rounded-full">
+              <TabsTrigger value="pick" className="rounded-full">
+                دوّر في القايمة
+              </TabsTrigger>
+              <TabsTrigger value="write" className="rounded-full">
+                اكتب جملة
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </SheetHeader>
+      )}
+
+      {view.name === "pick" && (
+        <PickFood
+          onPick={(food) => setView({ name: "amount", food, back: "pick" })}
+          onCreate={(draftName) =>
+            setView({ name: "new", draftName, back: "pick" })
+          }
+        />
+      )}
+      {view.name === "write" && (
+        <WriteFood
+          text={sentence}
+          onText={setSentence}
+          onCreate={(draftName) =>
+            setView({ name: "new", draftName, back: "write" })
+          }
+          onLogged={finish}
+        />
+      )}
+      {view.name === "amount" && (
+        <ChooseAmount
+          food={view.food}
+          onBack={() => setView({ name: view.back })}
+          onLogged={(e) => finish([e])}
+        />
+      )}
+      {view.name === "new" && (
+        <NewFood
+          draftName={view.draftName}
+          onBack={() => setView({ name: view.back })}
+          // Back in "write", the sentence re-parses and now finds the new food.
+          onSaved={(food) =>
+            setView(
+              view.back === "write"
+                ? { name: "write" }
+                : { name: "amount", food, back: "pick" }
+            )
+          }
+        />
+      )}
+    </>
+  )
+
+  // Laptop: a centered window. Phone: a sheet that slides up from the bottom.
+  if (isDesktop) {
+    return (
+      <Dialog open={start !== null} onOpenChange={(open) => !open && close()}>
+        <DialogContent className="flex h-[min(46rem,88vh)] max-w-[34rem] flex-col gap-0 overflow-hidden rounded-[1.75rem] p-0 sm:max-w-[34rem] [&>[data-slot=dialog-close]]:end-4 [&>[data-slot=dialog-close]]:top-4">
+          <SheetParts.Provider value={DIALOG_PARTS}>{body}</SheetParts.Provider>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   return (
-    <Drawer open={start !== null} onOpenChange={(open) => !open && close()} showSwipeHandle>
+    <Drawer
+      open={start !== null}
+      onOpenChange={(open) => !open && close()}
+      showSwipeHandle
+    >
       <DrawerContent className="[--drawer-content-height:calc(100dvh-3.5rem)]">
-        {(view.name === "pick" || view.name === "write") && (
-          <DrawerHeader className="gap-3 pb-2 text-start">
-            <DrawerTitle className="text-lg font-bold">سجّل أكل</DrawerTitle>
-            <DrawerDescription className="sr-only">دوّر على الأكلة أو اكتب اللي كلته في جملة</DrawerDescription>
-            <Tabs value={mode} onValueChange={(v) => setView({ name: v as DrawerStart })}>
-              <TabsList className="h-10 w-full rounded-full">
-                <TabsTrigger value="pick" className="rounded-full">
-                  دوّر في القايمة
-                </TabsTrigger>
-                <TabsTrigger value="write" className="rounded-full">
-                  اكتب جملة
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </DrawerHeader>
-        )}
-
-        {view.name === "pick" && (
-          <PickFood
-            onPick={(food) => setView({ name: "amount", food, back: "pick" })}
-            onCreate={(draftName) => setView({ name: "new", draftName, back: "pick" })}
-          />
-        )}
-        {view.name === "write" && (
-          <WriteFood
-            text={sentence}
-            onText={setSentence}
-            onCreate={(draftName) => setView({ name: "new", draftName, back: "write" })}
-            onLogged={finish}
-          />
-        )}
-        {view.name === "amount" && (
-          <ChooseAmount food={view.food} onBack={() => setView({ name: view.back })} onLogged={(e) => finish([e])} />
-        )}
-        {view.name === "new" && (
-          <NewFood
-            draftName={view.draftName}
-            onBack={() => setView({ name: view.back })}
-            // Back in "write", the sentence re-parses and now finds the new food.
-            onSaved={(food) => setView(view.back === "write" ? { name: "write" } : { name: "amount", food, back: "pick" })}
-          />
-        )}
+        <SheetParts.Provider value={DRAWER_PARTS}>{body}</SheetParts.Provider>
       </DrawerContent>
     </Drawer>
   )
 }
 
+/** Title and description come from whichever frame (drawer or dialog) is showing the views. */
+const DRAWER_PARTS = { Title: DrawerTitle, Description: DrawerDescription }
+const DIALOG_PARTS = { Title: DialogTitle, Description: DialogDescription }
+const SheetParts = createContext<typeof DRAWER_PARTS | typeof DIALOG_PARTS>(
+  DRAWER_PARTS
+)
+
+type PartProps = { className?: string; children?: React.ReactNode }
+
+function SheetTitle(props: PartProps) {
+  const { Title } = useContext(SheetParts)
+  return <Title {...props} />
+}
+
+function SheetDescription(props: PartProps) {
+  const { Description } = useContext(SheetParts)
+  return <Description {...props} />
+}
+
+function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 flex-col gap-0.5 p-4 pb-0 lg:px-6 lg:pt-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "mt-auto flex shrink-0 flex-col gap-2 p-4 lg:px-6 lg:pb-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <DrawerHeader className="flex-row items-center gap-2 text-start">
-      <Button variant="secondary" size="icon" className="rounded-full" aria-label="رجوع" onClick={onBack}>
+    <SheetHeader className="flex-row items-center gap-2 text-start">
+      <Button
+        variant="secondary"
+        size="icon"
+        className="rounded-full"
+        aria-label="رجوع"
+        onClick={onBack}
+      >
         <ArrowRightIcon />
       </Button>
-      <DrawerTitle className="truncate text-lg font-bold">{title}</DrawerTitle>
-    </DrawerHeader>
+      <SheetTitle className="truncate text-lg font-bold">{title}</SheetTitle>
+    </SheetHeader>
   )
 }
 
@@ -146,7 +263,10 @@ function WriteFood({
   const addEntries = useMizan((s) => s.addEntries)
   const foods = useMemo(() => allFoods(customFoods), [customFoods])
   const parsed = useMemo(() => parseFoodText(text, foods), [text, foods])
-  const [edits, setEdits] = useState<{ text: string; items: ParsedItem[] } | null>(null)
+  const [edits, setEdits] = useState<{
+    text: string
+    items: ParsedItem[]
+  } | null>(null)
   const [mealChoice, setMealChoice] = useState<Meal | null>(null)
 
   // Edits belong to the sentence they were made on.
@@ -191,13 +311,21 @@ function WriteFood({
         />
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            اكتب الأكل وكميته زي ما بتتكلم: "رغيفين"، "نص كيلو"، "٣ معالق"، "طبق". وافصل بين الحاجات بـ "و".
+            اكتب الأكل وكميته زي ما بتتكلم: "رغيفين"، "نص كيلو"، "٣ معالق"،
+            "طبق". وافصل بين الحاجات بـ "و".
           </p>
         ) : (
           <ParsedItems
             items={items}
-            onChange={(i, item) => setEdits({ text, items: items.map((x, j) => (j === i ? item : x)) })}
-            onRemove={(i) => setEdits({ text, items: items.filter((_, j) => j !== i) })}
+            onChange={(i, item) =>
+              setEdits({
+                text,
+                items: items.map((x, j) => (j === i ? item : x)),
+              })
+            }
+            onRemove={(i) =>
+              setEdits({ text, items: items.filter((_, j) => j !== i) })
+            }
             onCreate={onCreate}
           />
         )}
@@ -218,13 +346,18 @@ function WriteFood({
           </ToggleGroup>
         )}
       </div>
-      <DrawerFooter className="border-t pt-3">
-        <Button size="xl" className="rounded-full" disabled={!found.length} onClick={save}>
+      <SheetFooter className="border-t pt-3">
+        <Button
+          size="xl"
+          className="rounded-full"
+          disabled={!found.length}
+          onClick={save}
+        >
           {found.length
             ? `سجّل ${found.length === 1 ? "الأكلة" : `${num(found.length)} حاجات`} (${num(Math.round(total))} سعرة)`
             : "سجّل"}
         </Button>
-      </DrawerFooter>
+      </SheetFooter>
     </>
   )
 }
@@ -314,7 +447,7 @@ function PickFood({
                 type="button"
                 aria-pressed={tab === id}
                 onClick={() => setTab(id)}
-                className="rounded-full border px-3 py-1.5 text-sm outline-none aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="rounded-full border px-3 py-1.5 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
               >
                 {label}
               </button>
@@ -335,10 +468,15 @@ function PickFood({
                     : "مضفتش أكلات بنفسك لسه"}
               </EmptyTitle>
               <EmptyDescription>
-                ضيفها مرة واحدة بالسعرات اللي على العلبة، أو خليه يحسبها من مكونات الطبخة.
+                ضيفها مرة واحدة بالسعرات اللي على العلبة، أو خليه يحسبها من
+                مكونات الطبخة.
               </EmptyDescription>
             </EmptyHeader>
-            <Button size="xl" className="rounded-full" onClick={() => onCreate(query.trim())}>
+            <Button
+              size="xl"
+              className="rounded-full"
+              onClick={() => onCreate(query.trim())}
+            >
               <PlusIcon data-icon="inline-start" />
               أضف أكلة جديدة
             </Button>
@@ -347,7 +485,9 @@ function PickFood({
           <ItemGroup className="gap-0">
             {list.map((food) => {
               const unit = food.units[0]
-              const kcal = unit ? (food.per100.kcal * unit.grams) / 100 : food.per100.kcal
+              const kcal = unit
+                ? (food.per100.kcal * unit.grams) / 100
+                : food.per100.kcal
               return (
                 <Item
                   key={food.id}
@@ -359,10 +499,17 @@ function PickFood({
                   <ItemContent>
                     <ItemTitle className="text-base">
                       {food.name}
-                      {food.custom && <SparkleIcon className="size-3 text-positive" aria-label="أكلة ضفتها" />}
+                      {food.custom && (
+                        <SparkleIcon
+                          className="size-3 text-positive"
+                          aria-label="أكلة ضفتها"
+                        />
+                      )}
                     </ItemTitle>
                     <ItemDescription>
-                      {unit ? `${unit.name}: ${num(kcal)} سعرة` : `١٠٠ جرام: ${num(kcal)} سعرة`}
+                      {unit
+                        ? `${unit.name}: ${num(kcal)} سعرة`
+                        : `١٠٠ جرام: ${num(kcal)} سعرة`}
                     </ItemDescription>
                   </ItemContent>
                 </Item>
@@ -373,12 +520,17 @@ function PickFood({
       </div>
 
       {list.length > 0 && (
-        <DrawerFooter className="border-t pt-3">
-          <Button variant="outline" size="xl" className="rounded-full" onClick={() => onCreate(query.trim())}>
+        <SheetFooter className="border-t pt-3">
+          <Button
+            variant="outline"
+            size="xl"
+            className="rounded-full"
+            onClick={() => onCreate(query.trim())}
+          >
             <PlusIcon data-icon="inline-start" />
             أكلة مش موجودة؟ ضيفها
           </Button>
-        </DrawerFooter>
+        </SheetFooter>
       )}
     </>
   )
@@ -399,7 +551,9 @@ function ChooseAmount({
   const [qtyText, setQtyText] = useState(isGrams ? "100" : "1")
   const [meal, setMeal] = useState<Meal>(mealForNow())
 
-  const unitGrams = isGrams ? 1 : (food.units.find((u) => u.name === unit)?.grams ?? 1)
+  const unitGrams = isGrams
+    ? 1
+    : (food.units.find((u) => u.name === unit)?.grams ?? 1)
   const qty = parseNum(qtyText)
   const valid = Number.isFinite(qty) && qty > 0
   const grams = valid ? qty * unitGrams : 0
@@ -452,7 +606,12 @@ function ChooseAmount({
             />
             <span className="opacity-75">سعرة</span>
           </p>
-          <MacroChips p={macros.p} c={macros.c} f={macros.f} className="[&_.text-muted-foreground]:text-lime-ink/70" />
+          <MacroChips
+            p={macros.p}
+            c={macros.c}
+            f={macros.f}
+            className="[&_.text-muted-foreground]:text-lime-ink/70"
+          />
         </div>
 
         <section className="flex flex-col gap-2" aria-label="الوحدة">
@@ -464,7 +623,11 @@ function ChooseAmount({
             className="w-full flex-wrap"
           >
             {food.units.map((u) => (
-              <ToggleGroupItem key={u.name} value={u.name} className="rounded-full">
+              <ToggleGroupItem
+                key={u.name}
+                value={u.name}
+                className="rounded-full"
+              >
                 {u.name}
               </ToggleGroupItem>
             ))}
@@ -481,7 +644,13 @@ function ChooseAmount({
 
         <section className="flex flex-col gap-3" aria-label="الكمية">
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="icon-xl" className="rounded-full" aria-label="زوّد" onClick={() => bump(step)}>
+            <Button
+              variant="secondary"
+              size="icon-xl"
+              className="rounded-full"
+              aria-label="زوّد"
+              onClick={() => bump(step)}
+            >
               <PlusIcon />
             </Button>
             <Input
@@ -492,13 +661,24 @@ function ChooseAmount({
               aria-invalid={!valid}
               className="h-12 flex-1 rounded-full bg-card text-center text-xl font-bold"
             />
-            <Button variant="secondary" size="icon-xl" className="rounded-full" aria-label="قلّل" onClick={() => bump(-step)}>
+            <Button
+              variant="secondary"
+              size="icon-xl"
+              className="rounded-full"
+              aria-label="قلّل"
+              onClick={() => bump(-step)}
+            >
               <MinusIcon />
             </Button>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {presets.map((p) => (
-              <Button key={p} variant="secondary" className="rounded-full" onClick={() => setQtyText(String(p))}>
+              <Button
+                key={p}
+                variant="secondary"
+                className="rounded-full"
+                onClick={() => setQtyText(String(p))}
+              >
                 {p === 0.5 ? "نص" : num(p, 1)}
               </Button>
             ))}
@@ -521,11 +701,16 @@ function ChooseAmount({
         </ToggleGroup>
       </div>
 
-      <DrawerFooter className="border-t pt-3">
-        <Button size="xl" className="rounded-full" disabled={!valid} onClick={save}>
+      <SheetFooter className="border-t pt-3">
+        <Button
+          size="xl"
+          className="rounded-full"
+          disabled={!valid}
+          onClick={save}
+        >
           سجّل {valid ? `${num(qty, 2)} ${unit}` : ""}
         </Button>
-      </DrawerFooter>
+      </SheetFooter>
     </>
   )
 }

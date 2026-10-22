@@ -3,13 +3,36 @@ import { Trash2Icon } from "lucide-react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { addDays, dateKey, formatDay, formatShortDay, num, parseNum } from "@/lib/format"
+import {
+  addDays,
+  dateKey,
+  formatDay,
+  formatShortDay,
+  num,
+  parseNum,
+} from "@/lib/format"
 import { trendChange, withTrend } from "@/lib/weights"
 import { useMizan } from "@/store"
 
@@ -55,132 +78,174 @@ export function WeightScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="pt-2 text-3xl font-extrabold">الوزن</h1>
+      <h1 className="pt-1 text-[1.9rem] font-bold tracking-tight lg:text-[2.6rem]">
+        الوزن
+      </h1>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          save()
-        }}
-      >
-        <Field data-invalid={tried && !valid ? true : undefined}>
-          <FieldLabel htmlFor="weight-input">{todays ? "عدّل وزن النهارده" : "وزن النهارده"}</FieldLabel>
-          <div className="flex gap-2">
-            <InputGroup className="h-12 flex-1 rounded-xl">
-              <InputGroupInput
-                id="weight-input"
-                inputMode="decimal"
-                placeholder={todays ? num(todays.kg, 1) : "٨٠٫٥"}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                aria-invalid={tried && !valid}
-                className="text-lg font-bold"
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupText>كجم</InputGroupText>
-              </InputGroupAddon>
-            </InputGroup>
-            <Button type="submit" size="xl" className="rounded-full">
-              سجّل
-            </Button>
-          </div>
-          <FieldDescription>
-            {tried && !valid ? "اكتب وزن بين ٢٥ و٣٠٠ كجم." : "أدق وقت: الصبح بعد الحمام وقبل الأكل."}
-          </FieldDescription>
-        </Field>
-      </form>
+      {/* Laptop: log and history on one side, the chart large on the other. */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start">
+        <form
+          className="rounded-[1.5rem] lg:col-span-4 lg:border lg:bg-card lg:p-6"
+          onSubmit={(e) => {
+            e.preventDefault()
+            save()
+          }}
+        >
+          <Field data-invalid={tried && !valid ? true : undefined}>
+            <FieldLabel htmlFor="weight-input">
+              {todays ? "عدّل وزن النهارده" : "وزن النهارده"}
+            </FieldLabel>
+            <div className="flex gap-2">
+              <InputGroup className="h-12 flex-1 rounded-xl">
+                <InputGroupInput
+                  id="weight-input"
+                  inputMode="decimal"
+                  placeholder={todays ? num(todays.kg, 1) : "٨٠٫٥"}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  aria-invalid={tried && !valid}
+                  className="text-lg font-bold"
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupText>كجم</InputGroupText>
+                </InputGroupAddon>
+              </InputGroup>
+              <Button type="submit" size="xl" className="rounded-full">
+                سجّل
+              </Button>
+            </div>
+            <FieldDescription>
+              {tried && !valid
+                ? "اكتب وزن بين ٢٥ و٣٠٠ كجم."
+                : "أدق وقت: الصبح بعد الحمام وقبل الأكل."}
+            </FieldDescription>
+          </Field>
+        </form>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">الاتجاه</CardTitle>
-          <CardDescription>
-            {change === null
-              ? "النقط وزنك كل يوم، والخط المتوسط. سجّل أسبوع عشان الخط يبان."
-              : `المتوسط ${change < 0 ? "نزل" : "زاد"} ${num(Math.abs(change), 1)} كجم آخر أسبوع.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ToggleGroup
-            value={[range]}
-            onValueChange={(v) => v[0] && setRange(v[0])}
-            variant="solid"
-            className="grid w-full grid-cols-3"
-          >
-            {RANGES.map((r) => (
-              <ToggleGroupItem key={r.id} value={r.id}>
-                {r.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          {data.length < 2 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">سجّل وزنك يومين على الأقل عشان الرسم يظهر.</p>
-          ) : (
-            <ChartContainer config={chartConfig} className="aspect-[4/3] w-full">
-              <LineChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  reversed
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={24}
-                  tickFormatter={(d: string) => formatShortDay(d)}
-                />
-                <YAxis
-                  orientation="right"
-                  domain={["dataMin - 0.5", "dataMax + 0.5"]}
-                  tickLine={false}
-                  axisLine={false}
-                  width={36}
-                  tickFormatter={(v: number) => num(v, 1)}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(_, payload) => {
-                        const d = payload?.[0]?.payload?.date as string | undefined
-                        return d ? formatDay(d) : ""
-                      }}
-                    />
-                  }
-                />
-                <Line dataKey="kg" stroke="none" dot={{ r: 3, fill: "var(--color-kg)" }} isAnimationActive={false} />
-                <Line dataKey="avg" type="monotone" stroke="var(--color-avg)" strokeWidth={3} dot={false} isAnimationActive={false} />
-              </LineChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {weights.length > 0 && (
-        <section className="flex flex-col gap-2" aria-labelledby="weigh-ins">
-          <h2 id="weigh-ins" className="font-semibold">
-            كل الأوزان
-          </h2>
-          <ul className="flex flex-col divide-y rounded-xl border bg-card">
-            {[...weights].reverse().map((w) => (
-              <li key={w.date} className="flex items-center gap-3 ps-4 pe-1 py-1">
-                <span className="flex-1 text-sm">{formatDay(w.date)}</span>
-                <span className="font-semibold tabular-nums">{num(w.kg, 1)} كجم</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`امسح وزن ${formatDay(w.date)}`}
-                  onClick={() => {
-                    removeWeight(w.date)
-                    toast.add({
-                      title: "اتمسح الوزن",
-                      actionProps: { children: "رجّعه", onClick: () => logWeight(w.kg, w.date) },
-                    })
-                  }}
+        <Card className="lg:col-span-8 lg:row-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">الاتجاه</CardTitle>
+            <CardDescription>
+              {change === null
+                ? "النقط وزنك كل يوم، والخط المتوسط. سجّل أسبوع عشان الخط يبان."
+                : `المتوسط ${change < 0 ? "نزل" : "زاد"} ${num(Math.abs(change), 1)} كجم آخر أسبوع.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <ToggleGroup
+              value={[range]}
+              onValueChange={(v) => v[0] && setRange(v[0])}
+              variant="solid"
+              className="grid w-full grid-cols-3"
+            >
+              {RANGES.map((r) => (
+                <ToggleGroupItem key={r.id} value={r.id}>
+                  {r.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            {data.length < 2 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                سجّل وزنك يومين على الأقل عشان الرسم يظهر.
+              </p>
+            ) : (
+              <ChartContainer
+                config={chartConfig}
+                className="aspect-[4/3] w-full lg:aspect-[16/9]"
+              >
+                <LineChart
+                  data={data}
+                  margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
                 >
-                  <Trash2Icon />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    reversed
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={24}
+                    tickFormatter={(d: string) => formatShortDay(d)}
+                  />
+                  <YAxis
+                    orientation="right"
+                    domain={["dataMin - 0.5", "dataMax + 0.5"]}
+                    tickLine={false}
+                    axisLine={false}
+                    width={36}
+                    tickFormatter={(v: number) => num(v, 1)}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(_, payload) => {
+                          const d = payload?.[0]?.payload?.date as
+                            string | undefined
+                          return d ? formatDay(d) : ""
+                        }}
+                      />
+                    }
+                  />
+                  <Line
+                    dataKey="kg"
+                    stroke="none"
+                    dot={{ r: 3, fill: "var(--color-kg)" }}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    dataKey="avg"
+                    type="monotone"
+                    stroke="var(--color-avg)"
+                    strokeWidth={3}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {weights.length > 0 && (
+          <section
+            className="flex flex-col gap-2 lg:col-span-4"
+            aria-labelledby="weigh-ins"
+          >
+            <h2 id="weigh-ins" className="font-semibold">
+              كل الأوزان
+            </h2>
+            <ul className="flex flex-col divide-y rounded-xl border bg-card lg:max-h-[26rem] lg:overflow-y-auto">
+              {[...weights].reverse().map((w) => (
+                <li
+                  key={w.date}
+                  className="flex items-center gap-3 py-1 ps-4 pe-1"
+                >
+                  <span className="flex-1 text-sm">{formatDay(w.date)}</span>
+                  <span className="font-semibold tabular-nums">
+                    {num(w.kg, 1)} كجم
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`امسح وزن ${formatDay(w.date)}`}
+                    onClick={() => {
+                      removeWeight(w.date)
+                      toast.add({
+                        title: "اتمسح الوزن",
+                        actionProps: {
+                          children: "رجّعه",
+                          onClick: () => logWeight(w.kg, w.date),
+                        },
+                      })
+                    }}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

@@ -22,7 +22,7 @@ export function HeroCard({
   return (
     <section
       aria-labelledby="hero-title"
-      className="relative isolate overflow-hidden rounded-[1.75rem] bg-lime p-5 text-lime-ink shadow-[0_18px_40px_-18px] shadow-lime/70"
+      className="relative isolate flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-lime p-5 text-lime-ink shadow-[0_18px_40px_-18px] shadow-lime/70 lg:p-6"
     >
       {/* soft highlight, like light catching the card */}
       <div
@@ -55,7 +55,7 @@ export function HeroCard({
         <span>الهدف {num(target)}</span>
       </div>
 
-      <div className="mt-5 flex gap-2">
+      <div className="mt-auto flex gap-2 pt-5">
         <button
           type="button"
           onClick={onLog}

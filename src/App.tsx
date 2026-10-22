@@ -1,14 +1,17 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import confetti from "canvas-confetti"
+import { PlusIcon } from "lucide-react"
 import { AnimatePresence, motion, MotionConfig } from "motion/react"
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 import { toast } from "@/components/ui/toast"
-import { BottomNav, type Tab } from "@/components/bottom-nav"
+import { BottomNav, NavPill, type Tab } from "@/components/bottom-nav"
 import { LogFoodDrawer, type DrawerStart } from "@/components/log-food-drawer"
 import { useTheme } from "@/components/theme-provider"
+import { useIsDesktop } from "@/hooks/use-media-query"
 import { useResolvedTheme } from "@/hooks/use-resolved-theme"
 import { dateKey, num } from "@/lib/format"
+import { GOALS } from "@/lib/nutrition"
 import { OnboardingScreen } from "@/screens/onboarding"
 import { SettingsScreen } from "@/screens/settings"
 import { TodayScreen } from "@/screens/today"
@@ -37,6 +40,23 @@ function Logo() {
   )
 }
 
+/** Laptop only: the person's initial and name, like the profile chip in the reference dashboard. */
+function UserChip() {
+  const name = useMizan((s) => s.name)
+  const goal = useMizan((s) => GOALS.find((g) => g.id === s.profile?.goal)?.label)
+  return (
+    <span className="flex items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-4">
+      <span className="grid size-8 place-items-center rounded-full bg-foreground text-sm font-bold text-background" aria-hidden="true">
+        {name ? name[0] : "م"}
+      </span>
+      <span className="flex flex-col leading-tight">
+        <span className="text-sm font-semibold">{name || "أهلاً"}</span>
+        {goal && <span className="text-xs text-muted-foreground">هدفك {goal}</span>}
+      </span>
+    </span>
+  )
+}
+
 function ThemeButton() {
   const { setTheme } = useTheme()
   const resolved = useResolvedTheme()
@@ -53,6 +73,7 @@ function ThemeButton() {
 
 export function App() {
   const profile = useMizan((s) => s.profile)
+  const isDesktop = useIsDesktop()
   const [tab, setTab] = useState<Tab>(readTab)
   const [drawer, setDrawer] = useState<DrawerStart | null>(null)
 
@@ -104,7 +125,7 @@ export function App() {
   if (!profile) {
     return (
       <MotionConfig reducedMotion="user">
-        <main className="mx-auto max-w-lg px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-16">
+        <main className="mx-auto max-w-lg px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-16 lg:max-w-6xl lg:px-8 lg:pt-10">
           <OnboardingScreen />
         </main>
       </MotionConfig>
@@ -113,12 +134,28 @@ export function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <header className="mx-auto flex max-w-lg items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
+      <header className="mx-auto flex max-w-lg items-center justify-between gap-4 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 lg:max-w-7xl lg:px-8 lg:pt-6 lg:pb-6">
         <Logo />
-        <ThemeButton />
+        {isDesktop && <NavPill tab={tab} onTab={goTo} showAllLabels className="bg-card" />}
+        <div className="flex items-center gap-2">
+          <ThemeButton />
+          {isDesktop && (
+            <>
+              <button
+                type="button"
+                onClick={() => setDrawer("pick")}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-lime px-4 text-sm font-semibold text-lime-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/60 active:scale-[0.98]"
+              >
+                <PlusIcon className="size-4" aria-hidden="true" />
+                سجّل أكل
+              </button>
+              <UserChip />
+            </>
+          )}
+        </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 pb-32">
+      <main className="mx-auto max-w-lg px-4 pb-32 lg:max-w-7xl lg:px-8 lg:pb-12">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
@@ -145,7 +182,7 @@ export function App() {
         </AnimatePresence>
       </main>
 
-      <BottomNav tab={tab} onTab={goTo} onAdd={() => setDrawer("pick")} />
+      {!isDesktop && <BottomNav tab={tab} onTab={goTo} onAdd={() => setDrawer("pick")} />}
       <LogFoodDrawer
         start={drawer}
         onOpenChange={(open) => !open && setDrawer(null)}

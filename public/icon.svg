@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#111113"/>
+  <!-- daily ring, three quarters full -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#2a2a2e" stroke-width="56"/>
+  <path d="M256 106 A150 150 0 1 1 106 256" fill="none" stroke="#c5f23a" stroke-width="56" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="34" fill="#c5f23a"/>
+</svg>

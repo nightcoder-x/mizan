@@ -1,21 +1,26 @@
-# React + TypeScript + Vite + shadcn/ui
+# ميزان
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+A personal calorie, macro and weight tracker that runs as an iPhone home-screen app. Arabic, right to left.
 
-## Adding components
+- Log food by searching a list of about 170 Egyptian dishes and ingredients, or by writing a sentence like
+  "فطرت ٢ رغيف وطبق فول وبيضتين". It is parsed on the device, with no AI or server.
+- Add your own foods from a nutrition label, or from a recipe's ingredients and the number of plates it makes.
+- Daily targets from Mifflin-St Jeor and your goal (cut, maintain, bulk).
+- Weight log with a 7-day moving average.
 
-To add components to your app, run the following command:
+All data stays in the browser on the device. Settings has a backup button that hands a JSON file to the
+share sheet, so it can be saved to Google Drive and restored later.
+
+## Run
 
 ```bash
-npx shadcn@latest add button
+npm install
+npm run dev
 ```
 
-This will place the ui components in the `src/components` directory.
+`npm run build` outputs the site to `dist/` with base path `/mizan/` for GitHub Pages. Pushing to `main`
+deploys it through `.github/workflows/deploy.yml`.
 
-## Using components
+`npx tsx --tsconfig tsconfig.app.json scripts/try-parser.ts` prints how sample sentences are parsed.
 
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button"
-```
+Built with Vite, React, Tailwind, shadcn/ui (Base UI), Magic UI and motion.

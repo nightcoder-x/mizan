@@ -1,10 +1,13 @@
-import { createContext, useContext, useMemo, useState } from "react"
+import { createContext, lazy, Suspense, useContext, useMemo, useState } from "react"
 import {
   ArrowRightIcon,
   MinusIcon,
   PlusIcon,
+  ScanBarcodeIcon,
   SearchIcon,
   SparkleIcon,
+  Trash2Icon,
+  ZapIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -45,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CustomFoodForm } from "@/components/custom-food-form"
 import { MacroChips } from "@/components/macro-chips"
+import { NumberField } from "@/components/number-field"
 import { itemKcal, ParsedItems } from "@/components/parsed-items"
 import { RecipeForm } from "@/components/recipe-form"
 import type { Food } from "@/data/foods"
@@ -54,9 +58,14 @@ import { dateKey, num, parseNum } from "@/lib/format"
 import { scaleMacros } from "@/lib/nutrition"
 import { parseFoodText, type ParsedItem } from "@/lib/parse-food-text"
 import { cn } from "@/lib/utils"
-import { MEALS, mealForNow, useMizan, type Entry, type Meal } from "@/store"
+import { MEALS, mealForNow, useMizan, type Entry, type Meal, type SavedMeal } from "@/store"
 
 const GRAMS = "جرام"
+
+// The camera decoder is heavy, so the scanner loads only when opened.
+const BarcodeScanner = lazy(() =>
+  import("@/components/barcode-scanner").then((m) => ({ default: m.BarcodeScanner }))
+)
 
 export type DrawerStart = "pick" | "write"
 
@@ -64,6 +73,8 @@ type View =
   | { name: DrawerStart }
   | { name: "amount"; food: Food; back: "pick" | "write" }
   | { name: "new"; draftName: string; back: "pick" | "write" }
+  | { name: "barcode"; back: "pick" }
+  | { name: "quick"; back: "pick" }
 
 export function LogFoodDrawer({
   start,
@@ -128,7 +139,24 @@ export function LogFoodDrawer({
           onCreate={(draftName) =>
             setView({ name: "new", draftName, back: "pick" })
           }
+          onBarcode={() => setView({ name: "barcode", back: "pick" })}
+          onQuick={() => setView({ name: "quick", back: "pick" })}
+          onLogged={finish}
         />
+      )}
+      {view.name === "barcode" && (
+        <>
+          <BackHeader title="امسح باركود" onBack={() => setView({ name: "pick" })} />
+          <Suspense fallback={<p className="p-6 text-center text-sm text-muted-foreground">بجهّز الكاميرا…</p>}>
+            <BarcodeScanner
+              onFood={(food) => setView({ name: "amount", food, back: "pick" })}
+              onManual={(draftName) => setView({ name: "new", draftName, back: "pick" })}
+            />
+          </Suspense>
+        </>
+      )}
+      {view.name === "quick" && (
+        <QuickAdd onBack={() => setView({ name: "pick" })} onLogged={(e) => finish([e])} />
       )}
       {view.name === "write" && (
         <WriteFood
@@ -399,14 +427,21 @@ function NewFood({
 function PickFood({
   onPick,
   onCreate,
+  onBarcode,
+  onQuick,
+  onLogged,
 }: {
+  onBarcode: () => void
+  onQuick: () => void
+  onLogged: (entries: Entry[]) => void
   onPick: (food: Food) => void
   onCreate: (draftName: string) => void
 }) {
   const customFoods = useMizan((s) => s.customFoods)
   const entries = useMizan((s) => s.entries)
   const [query, setQuery] = useState("")
-  const [tab, setTab] = useState<"all" | "recent" | "mine">("all")
+  const savedMeals = useMizan((s) => s.savedMeals)
+  const [tab, setTab] = useState<"all" | "recent" | "mine" | "meals">("all")
 
   const foods = useMemo(() => allFoods(customFoods), [customFoods])
   const recent = useMemo(() => recentFoods(entries, foods), [entries, foods])
@@ -433,13 +468,24 @@ function PickFood({
             <SearchIcon />
           </InputGroupAddon>
         </InputGroup>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" className="h-10 rounded-full" onClick={onBarcode}>
+            <ScanBarcodeIcon data-icon="inline-start" />
+            امسح باركود
+          </Button>
+          <Button variant="secondary" className="h-10 rounded-full" onClick={onQuick}>
+            <ZapIcon data-icon="inline-start" />
+            سعرات بس
+          </Button>
+        </div>
         {!query.trim() && (
-          <div className="flex gap-1.5" role="group" aria-label="القايمة">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="القايمة">
             {(
               [
                 ["all", "الكل"],
                 ["recent", "آخر حاجات"],
                 ["mine", "أكلاتي"],
+                ["meals", "وجباتي"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -457,7 +503,9 @@ function PickFood({
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 pt-2 pb-4">
-        {list.length === 0 ? (
+        {tab === "meals" && !query.trim() ? (
+          <SavedMealsList meals={savedMeals} onLogged={onLogged} />
+        ) : list.length === 0 ? (
           <Empty className="py-10">
             <EmptyHeader>
               <EmptyTitle>
@@ -519,7 +567,7 @@ function PickFood({
         )}
       </div>
 
-      {list.length > 0 && (
+      {list.length > 0 && !(tab === "meals" && !query.trim()) && (
         <SheetFooter className="border-t pt-3">
           <Button
             variant="outline"
@@ -709,6 +757,141 @@ function ChooseAmount({
           onClick={save}
         >
           سجّل {valid ? `${num(qty, 2)} ${unit}` : ""}
+        </Button>
+      </SheetFooter>
+    </>
+  )
+}
+
+/** Saved meal templates: one tap logs every food in it at the current meal. */
+function SavedMealsList({ meals, onLogged }: { meals: SavedMeal[]; onLogged: (entries: Entry[]) => void }) {
+  const addEntries = useMizan((s) => s.addEntries)
+  const removeSavedMeal = useMizan((s) => s.removeSavedMeal)
+  if (!meals.length) {
+    return (
+      <Empty className="py-10">
+        <EmptyHeader>
+          <EmptyTitle>مفيش وجبات محفوظة لسه</EmptyTitle>
+          <EmptyDescription>
+            سجّل فطارك المعتاد مرة، وبعدين من "أكل النهارده" دوس "احفظ كوجبة"، والمرة الجاية يتسجل بضغطة.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+  return (
+    <ItemGroup className="gap-0">
+      {meals.map((m) => {
+        const kcal = m.items.reduce((s, i) => s + i.kcal, 0)
+        return (
+          <div key={m.id} className="flex items-center gap-1">
+            <Item
+              render={<button type="button" />}
+              className="flex-1 rounded-2xl text-start hover:bg-card active:bg-card"
+              onClick={() => {
+                const now = new Date()
+                const meal = mealForNow(now)
+                onLogged(addEntries(m.items.map((i) => ({ ...i, date: dateKey(now), at: now.toISOString(), meal }))))
+              }}
+            >
+              <ItemContent>
+                <ItemTitle className="text-base">{m.name}</ItemTitle>
+                <ItemDescription>
+                  {num(m.items.length)} حاجات، {num(Math.round(kcal))} سعرة: {m.items.map((i) => i.name).join("، ")}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              aria-label={`امسح وجبة ${m.name}`}
+              onClick={() => removeSavedMeal(m.id)}
+            >
+              <Trash2Icon />
+            </Button>
+          </div>
+        )
+      })}
+    </ItemGroup>
+  )
+}
+
+/** Just calories (and protein if you know it), for food that isn't worth adding to the list. */
+function QuickAdd({ onBack, onLogged }: { onBack: () => void; onLogged: (entry: Entry) => void }) {
+  const addEntry = useMizan((s) => s.addEntry)
+  const [name, setName] = useState("")
+  const [values, setValues] = useState({ kcal: 0, p: 0, c: 0, f: 0 })
+  const [meal, setMeal] = useState<Meal>(mealForNow())
+  const fields = [
+    { key: "kcal", label: "سعرات" },
+    { key: "p", label: "بروتين (جم)" },
+    { key: "c", label: "كارب (جم)" },
+    { key: "f", label: "دهون (جم)" },
+  ] as const
+
+  return (
+    <>
+      <BackHeader title="سعرات بس" onBack={onBack} />
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-2 pb-4 lg:px-6">
+        <p className="text-sm text-muted-foreground">لأكلة برا أو حاجة مش هتتكرر: اكتب السعرات وخلاص، والباقي اختياري.</p>
+        <Input
+          className="h-11 rounded-xl"
+          placeholder="اسمها (اختياري)، مثلاً: عزومة"
+          aria-label="اسم الأكلة"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          {fields.map((f) => (
+            <label key={f.key} className="flex flex-col gap-1 text-sm font-medium">
+              {f.label}
+              <NumberField
+                className="h-11 rounded-xl text-center font-semibold"
+                value={values[f.key]}
+                onCommit={(v) => setValues((x) => ({ ...x, [f.key]: Math.max(0, v) }))}
+              />
+            </label>
+          ))}
+        </div>
+        <ToggleGroup
+          value={[meal]}
+          onValueChange={(v) => v[0] && setMeal(v[0] as Meal)}
+          variant="solid"
+          size="xl"
+          className="grid w-full grid-cols-4"
+          aria-label="الوجبة"
+        >
+          {MEALS.map((m) => (
+            <ToggleGroupItem key={m.id} value={m.id} className="rounded-full">
+              {m.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <SheetFooter className="border-t pt-3">
+        <Button
+          size="xl"
+          className="rounded-full"
+          disabled={values.kcal <= 0}
+          onClick={() => {
+            const now = new Date()
+            onLogged(
+              addEntry({
+                date: dateKey(now),
+                at: now.toISOString(),
+                meal,
+                foodId: "quick",
+                name: name.trim() || "أكلة سريعة",
+                qty: 1,
+                unit: "وجبة",
+                grams: 0,
+                ...values,
+              })
+            )
+          }}
+        >
+          سجّل {values.kcal > 0 ? `${num(values.kcal)} سعرة` : ""}
         </Button>
       </SheetFooter>
     </>

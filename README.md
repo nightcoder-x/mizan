@@ -5,8 +5,15 @@ A personal calorie, macro and weight tracker that runs as an iPhone home-screen 
 - Log food by searching a list of about 170 Egyptian dishes and ingredients, or by writing a sentence like
   "فطرت ٢ رغيف وطبق فول وبيضتين". It is parsed on the device, with no AI or server.
 - Add your own foods from a nutrition label, or from a recipe's ingredients and the number of plates it makes.
-- Daily targets from Mifflin-St Jeor and your goal (cut, maintain, bulk).
-- Weight log with a 7-day moving average.
+- Barcode scanning with the phone camera (ZXing in WebAssembly), products from Open Food Facts.
+- Saved meals, "repeat yesterday", and quick add by calories.
+- Daily targets from Mifflin-St Jeor and your goal (cut, maintain, bulk), optional calorie cycling
+  for training and rest days, and a weekly check-in that re-fits targets to your measured expenditure
+  (average intake minus the weight trend change × 7700 kcal/kg).
+- Workout log: routines, sets with last-session prefill, estimated 1RM (Epley) and PR alerts,
+  rest timer, plate calculator, weekly sets per muscle.
+- Weight log with a 7-day moving average, body measurements with a US Navy body-fat estimate,
+  progress photos kept in IndexedDB, water, steps, logging streak and a weekly report.
 
 All data stays in the browser on the device. Settings has a backup button that hands a JSON file to the
 share sheet, so it can be saved to Google Drive and restored later.

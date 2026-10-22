@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { toast } from "@/components/ui/toast"
+import { MealActions } from "@/components/meal-actions"
 import { formatTime, num } from "@/lib/format"
 import { MEALS, useMizan, type Entry, type Meal } from "@/store"
 
@@ -42,10 +43,13 @@ export function MealsTable({ entries, onAdd }: { entries: Entry[]; onAdd: () => 
               : "لسه مفيش حاجة متسجلة"}
           </p>
         </div>
-        <Button variant="secondary" className="h-10 rounded-full px-4" onClick={onAdd}>
-          <PlusIcon data-icon="inline-start" />
-          أضف أكلة
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <MealActions />
+          <Button variant="secondary" className="h-10 rounded-full px-4" onClick={onAdd}>
+            <PlusIcon data-icon="inline-start" />
+            أضف أكلة
+          </Button>
+        </div>
       </div>
 
       {sorted.length === 0 ? (

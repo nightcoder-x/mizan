@@ -1,6 +1,7 @@
 ﻿import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import type { Exercise } from "@/data/exercises"
 import type { Food } from "@/data/foods"
 import { dateKey } from "@/lib/format"
 import { computeTargets, type Profile, type Targets } from "@/lib/nutrition"
@@ -41,6 +42,39 @@ export type Entry = {
 
 export type WeighIn = { date: string; kg: number }
 
+/** A food line saved inside a meal template; dates and ids are filled in when it is logged. */
+export type SavedMealItem = Omit<Entry, "id" | "date" | "at" | "meal">
+export type SavedMeal = { id: string; name: string; items: SavedMealItem[] }
+
+export type WorkoutSet = { weight: number; reps: number; done: boolean }
+export type WorkoutExercise = { exerciseId: string; sets: WorkoutSet[] }
+export type Workout = {
+  id: string
+  date: string
+  startedAt: string
+  finishedAt: string | null
+  name: string
+  exercises: WorkoutExercise[]
+}
+export type Routine = { id: string; name: string; exerciseIds: string[] }
+
+/** Body measurements in cm. Any of them can be missing on a given day. */
+export type Measurement = {
+  date: string
+  waist?: number
+  neck?: number
+  hips?: number
+  chest?: number
+  arm?: number
+  thigh?: number
+}
+
+/** The photo itself lives in IndexedDB (see lib/photos); this is its index. */
+export type PhotoMeta = { id: string; date: string }
+
+/** Calorie cycling: eat more on training days, less on rest days. Fractions of the target. */
+export type Cycling = { enabled: boolean; trainingBoost: number; restCut: number }
+
 export type MizanData = {
   /** What the greeting calls the person; stays on the device. */
   name: string
@@ -51,8 +85,50 @@ export type MizanData = {
   entries: Entry[]
   weights: WeighIn[]
   customFoods: Food[]
+  savedMeals: SavedMeal[]
+  workouts: Workout[]
+  routines: Routine[]
+  customExercises: Exercise[]
+  /** Glasses of water (250 ml) per day. */
+  water: Record<string, number>
+  steps: Record<string, number>
+  measurements: Measurement[]
+  photos: PhotoMeta[]
+  /** Manual "today is / isn't a training day"; without it, a logged workout decides. */
+  trainingDays: Record<string, boolean>
+  cycling: Cycling
+  waterGoal: number
+  stepGoal: number
+  restSeconds: number
   lastBackupAt: string | null
+  /** When the last weekly check-in was applied or dismissed. */
+  lastCheckIn: string | null
 }
+
+const DATA_KEYS = [
+  "name",
+  "profile",
+  "targets",
+  "manualTargets",
+  "entries",
+  "weights",
+  "customFoods",
+  "savedMeals",
+  "workouts",
+  "routines",
+  "customExercises",
+  "water",
+  "steps",
+  "measurements",
+  "photos",
+  "trainingDays",
+  "cycling",
+  "waterGoal",
+  "stepGoal",
+  "restSeconds",
+  "lastBackupAt",
+  "lastCheckIn",
+] as const satisfies readonly (keyof MizanData)[]
 
 type Actions = {
   setName: (name: string) => void
@@ -67,6 +143,25 @@ type Actions = {
   removeWeight: (date: string) => void
   addCustomFood: (food: Omit<Food, "id" | "custom">) => Food
   removeCustomFood: (id: string) => void
+  saveMeal: (name: string, items: SavedMealItem[]) => void
+  removeSavedMeal: (id: string) => void
+  startWorkout: (name: string, exerciseIds: string[]) => string
+  updateWorkout: (id: string, update: (w: Workout) => Workout) => void
+  finishWorkout: (id: string) => void
+  removeWorkout: (id: string) => void
+  saveRoutine: (routine: Omit<Routine, "id"> & { id?: string }) => void
+  removeRoutine: (id: string) => void
+  addExercise: (exercise: Omit<Exercise, "id" | "custom">) => Exercise
+  setWater: (date: string, glasses: number) => void
+  setSteps: (date: string, steps: number) => void
+  saveMeasurement: (m: Measurement) => void
+  removeMeasurement: (date: string) => void
+  addPhoto: (meta: PhotoMeta) => void
+  removePhoto: (id: string) => void
+  setTrainingDay: (date: string, training: boolean | null) => void
+  setCycling: (cycling: Cycling) => void
+  setDailyGoals: (goals: { waterGoal?: number; stepGoal?: number; restSeconds?: number }) => void
+  markCheckIn: () => void
   markBackedUp: () => void
   replaceAll: (data: MizanData) => void
 }
@@ -79,7 +174,21 @@ const initial: MizanData = {
   entries: [],
   weights: [],
   customFoods: [],
+  savedMeals: [],
+  workouts: [],
+  routines: [],
+  customExercises: [],
+  water: {},
+  steps: {},
+  measurements: [],
+  photos: [],
+  trainingDays: {},
+  cycling: { enabled: false, trainingBoost: 0.1, restCut: 0.1 },
+  waterGoal: 10,
+  stepGoal: 8000,
+  restSeconds: 90,
   lastBackupAt: null,
+  lastCheckIn: null,
 }
 
 const uid = () => crypto.randomUUID()
@@ -147,36 +256,109 @@ export const useMizan = create<MizanData & Actions>()(
       removeCustomFood: (id) =>
         set((s) => ({ customFoods: s.customFoods.filter((f) => f.id !== id) })),
 
+      saveMeal: (name, items) =>
+        set((s) => ({ savedMeals: [...s.savedMeals, { id: uid(), name: name.trim(), items }] })),
+
+      removeSavedMeal: (id) => set((s) => ({ savedMeals: s.savedMeals.filter((m) => m.id !== id) })),
+
+      startWorkout: (name, exerciseIds) => {
+        const now = new Date()
+        const id = uid()
+        const workout: Workout = {
+          id,
+          date: dateKey(now),
+          startedAt: now.toISOString(),
+          finishedAt: null,
+          name,
+          exercises: exerciseIds.map((exerciseId) => ({ exerciseId, sets: [] })),
+        }
+        set((s) => ({ workouts: [...s.workouts, workout] }))
+        return id
+      },
+
+      updateWorkout: (id, update) =>
+        set((s) => ({ workouts: s.workouts.map((w) => (w.id === id ? update(w) : w)) })),
+
+      finishWorkout: (id) =>
+        set((s) => ({
+          workouts: s.workouts.map((w) =>
+            w.id === id
+              ? {
+                  ...w,
+                  finishedAt: new Date().toISOString(),
+                  // Unfinished sets and empty exercises aren't part of the record.
+                  exercises: w.exercises
+                    .map((e) => ({ ...e, sets: e.sets.filter((set) => set.done) }))
+                    .filter((e) => e.sets.length > 0),
+                }
+              : w
+          ),
+        })),
+
+      removeWorkout: (id) => set((s) => ({ workouts: s.workouts.filter((w) => w.id !== id) })),
+
+      saveRoutine: ({ id, ...routine }) =>
+        set((s) =>
+          id && s.routines.some((r) => r.id === id)
+            ? { routines: s.routines.map((r) => (r.id === id ? { ...routine, id } : r)) }
+            : { routines: [...s.routines, { ...routine, id: uid() }] }
+        ),
+
+      removeRoutine: (id) => set((s) => ({ routines: s.routines.filter((r) => r.id !== id) })),
+
+      addExercise: (exercise) => {
+        const saved: Exercise = { ...exercise, id: `custom-${uid()}`, custom: true }
+        set((s) => ({ customExercises: [...s.customExercises, saved] }))
+        return saved
+      },
+
+      setWater: (date, glasses) => set((s) => ({ water: { ...s.water, [date]: Math.max(0, glasses) } })),
+
+      setSteps: (date, steps) => set((s) => ({ steps: { ...s.steps, [date]: Math.max(0, Math.round(steps)) } })),
+
+      saveMeasurement: (m) =>
+        set((s) => {
+          const rest = s.measurements.filter((x) => x.date !== m.date)
+          return { measurements: [...rest, m].sort((a, b) => a.date.localeCompare(b.date)) }
+        }),
+
+      removeMeasurement: (date) =>
+        set((s) => ({ measurements: s.measurements.filter((m) => m.date !== date) })),
+
+      addPhoto: (meta) => set((s) => ({ photos: [...s.photos, meta] })),
+
+      removePhoto: (id) => set((s) => ({ photos: s.photos.filter((p) => p.id !== id) })),
+
+      setTrainingDay: (date, training) =>
+        set((s) => {
+          const trainingDays = { ...s.trainingDays }
+          if (training === null) delete trainingDays[date]
+          else trainingDays[date] = training
+          return { trainingDays }
+        }),
+
+      setCycling: (cycling) => set({ cycling }),
+
+      setDailyGoals: (goals) => set(goals),
+
+      markCheckIn: () => set({ lastCheckIn: new Date().toISOString() }),
+
       markBackedUp: () => set({ lastBackupAt: new Date().toISOString() }),
 
-      replaceAll: (data) => set({ ...data }),
+      replaceAll: (data) => set({ ...initial, ...data }),
     }),
     {
       name: "mizan",
-      version: 1,
-      partialize: (s): MizanData => ({
-        name: s.name,
-        profile: s.profile,
-        targets: s.targets,
-        manualTargets: s.manualTargets,
-        entries: s.entries,
-        weights: s.weights,
-        customFoods: s.customFoods,
-        lastBackupAt: s.lastBackupAt,
-      }),
+      version: 2,
+      partialize: (s): MizanData => pickData(s),
+      // Version 1 had no training, water, steps or body data; start those empty.
+      migrate: (persisted) => ({ ...initial, ...(persisted as Partial<MizanData>) }),
     }
   )
 )
 
 export function pickData(s: MizanData): MizanData {
-  return {
-    name: s.name,
-    profile: s.profile,
-    targets: s.targets,
-    manualTargets: s.manualTargets,
-    entries: s.entries,
-    weights: s.weights,
-    customFoods: s.customFoods,
-    lastBackupAt: s.lastBackupAt,
-  }
+  return Object.fromEntries(DATA_KEYS.map((k) => [k, s[k]])) as MizanData
 }
+
+export { initial as EMPTY_DATA }

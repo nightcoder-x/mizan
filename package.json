@@ -16,6 +16,7 @@
     "@fontsource-variable/alexandria": "^5.3.0",
     "@tailwindcss/vite": "^4",
     "@types/canvas-confetti": "^1.9.0",
+    "barcode-detector": "3.2.2",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",

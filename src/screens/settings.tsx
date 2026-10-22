@@ -13,16 +13,17 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { NumberField } from "@/components/number-field"
 import { ProfileForm } from "@/components/profile-form"
 import { useTheme } from "@/components/theme-provider"
-import { BackupError, exportBackup, parseBackup } from "@/lib/backup"
+import { BackupError, exportBackup, parseBackup, restorePhotos, type Backup } from "@/lib/backup"
 import { dateKey, daysBetween, formatDay, num, parseNum } from "@/lib/format"
 import type { Targets } from "@/lib/nutrition"
-import { pickData, useMizan, type MizanData } from "@/store"
+import { pickData, useMizan } from "@/store"
 
 export function SettingsScreen() {
   return (
@@ -33,6 +34,9 @@ export function SettingsScreen() {
         <NameCard />
         <BackupCard />
         <TargetsCard />
+        <CyclingCard />
+        <GoalsCard />
+        <StepsShortcutCard />
         <ThemeCard />
         <ProfileCard />
       </div>
@@ -81,7 +85,7 @@ function BackupCard() {
   const markBackedUp = useMizan((s) => s.markBackedUp)
   const replaceAll = useMizan((s) => s.replaceAll)
   const fileInput = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<MizanData | null>(null)
+  const [pending, setPending] = useState<Backup | null>(null)
 
   const save = async () => {
     try {
@@ -150,7 +154,7 @@ function BackupCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>ترجّع النسخة دي؟</AlertDialogTitle>
             <AlertDialogDescription>
-              فيها {num(pending?.entries.length ?? 0)} أكلة و{num(pending?.weights.length ?? 0)} وزن. اللي على الجهاز ده
+              فيها {num(pending?.data.entries.length ?? 0)} أكلة و{num(pending?.data.weights.length ?? 0)} وزن و{num(pending?.data.workouts.length ?? 0)} تمرينة. اللي على الجهاز ده
               دلوقتي هيتشال ويتحط مكانه اللي في النسخة.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -159,7 +163,10 @@ function BackupCard() {
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
-                if (pending) replaceAll(pending)
+                if (pending) {
+                  replaceAll(pending.data)
+                  void restorePhotos(pending.photoFiles)
+                }
                 setPending(null)
                 toast.add({ title: "النسخة رجعت", type: "success" })
               }}
@@ -302,6 +309,141 @@ function ProfileCard() {
             toast.add({ title: "بياناتك اتحفظت", type: "success" })
           }}
         />
+      </CardContent>
+    </Card>
+  )
+}
+
+function CyclingCard() {
+  const cycling = useMizan((s) => s.cycling)
+  const targets = useMizan((s) => s.targets)
+  const setCycling = useMizan((s) => s.setCycling)
+  const pct = (x: number) => Math.round(x * 100)
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>أيام التمرين وأيام الراحة</CardTitle>
+        <CardDescription>
+          كُل أكتر يوم التمرين وأقل يوم الراحة. الفرق كله بييجي من الكارب، والبروتين والدهون ثابتين.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <ToggleGroup
+          value={[cycling.enabled ? "on" : "off"]}
+          onValueChange={(v) => v[0] && setCycling({ ...cycling, enabled: v[0] === "on" })}
+          variant="solid"
+          size="xl"
+          className="grid w-full grid-cols-2"
+        >
+          <ToggleGroupItem value="off" className="rounded-full">
+            هدف واحد كل يوم
+          </ToggleGroupItem>
+          <ToggleGroupItem value="on" className="rounded-full">
+            تمرين وراحة
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {cycling.enabled && (
+          <FieldGroup className="grid grid-cols-2 gap-3">
+            <Field>
+              <FieldLabel htmlFor="cycle-up">زيادة يوم التمرين ٪</FieldLabel>
+              <NumberField
+                id="cycle-up"
+                decimal={false}
+                className="h-11 rounded-xl"
+                value={pct(cycling.trainingBoost)}
+                onCommit={(v) => setCycling({ ...cycling, trainingBoost: Math.min(Math.max(v, 0), 30) / 100 })}
+              />
+              <FieldDescription>{num(Math.round(targets.kcal * (1 + cycling.trainingBoost)))} سعرة</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="cycle-down">نقص يوم الراحة ٪</FieldLabel>
+              <NumberField
+                id="cycle-down"
+                decimal={false}
+                className="h-11 rounded-xl"
+                value={pct(cycling.restCut)}
+                onCommit={(v) => setCycling({ ...cycling, restCut: Math.min(Math.max(v, 0), 30) / 100 })}
+              />
+              <FieldDescription>{num(Math.round(targets.kcal * (1 - cycling.restCut)))} سعرة</FieldDescription>
+            </Field>
+          </FieldGroup>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function GoalsCard() {
+  const waterGoal = useMizan((s) => s.waterGoal)
+  const stepGoal = useMizan((s) => s.stepGoal)
+  const restSeconds = useMizan((s) => s.restSeconds)
+  const setDailyGoals = useMizan((s) => s.setDailyGoals)
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>أهداف اليوم والتمرين</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup className="grid grid-cols-3 gap-3">
+          <Field>
+            <FieldLabel htmlFor="goal-water">كوبايات مية</FieldLabel>
+            <NumberField
+              id="goal-water"
+              decimal={false}
+              className="h-11 rounded-xl"
+              value={waterGoal}
+              onCommit={(v) => v >= 1 && v <= 20 && setDailyGoals({ waterGoal: v })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="goal-steps">خطوات</FieldLabel>
+            <NumberField
+              id="goal-steps"
+              decimal={false}
+              className="h-11 rounded-xl"
+              value={stepGoal}
+              onCommit={(v) => v >= 1000 && setDailyGoals({ stepGoal: v })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="goal-rest">راحة (ثانية)</FieldLabel>
+            <NumberField
+              id="goal-rest"
+              decimal={false}
+              className="h-11 rounded-xl"
+              value={restSeconds}
+              onCommit={(v) => v >= 15 && v <= 600 && setDailyGoals({ restSeconds: v })}
+            />
+          </Field>
+        </FieldGroup>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The website can't read Apple Health, so a Shortcut copies the number and the app pastes it. */
+function StepsShortcutCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>خطواتك من الآيفون</CardTitle>
+        <CardDescription>المواقع مش بتقدر تقرا Apple Health، فهنعمل Shortcut ينسخ الرقم وانت تلصقه بضغطة.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ol className="flex list-decimal flex-col gap-1.5 ps-5 text-sm">
+          <li>افتح تطبيق <strong>Shortcuts</strong> ودوس <strong>+</strong>.</li>
+          <li>
+            ضيف <strong>Find Health Samples</strong>: النوع Steps، والتاريخ Today.
+          </li>
+          <li>
+            ضيف <strong>Calculate Statistics</strong> واختار <strong>Sum</strong>.
+          </li>
+          <li>
+            ضيف <strong>Copy to Clipboard</strong>.
+          </li>
+          <li>سمّيه "خطوات ميزان" وحطه على الشاشة الرئيسية.</li>
+          <li>شغّله، وبعدين افتح ميزان ودوس <strong>الصق من الآيفون</strong> في كارت الخطوات.</li>
+        </ol>
       </CardContent>
     </Card>
   )

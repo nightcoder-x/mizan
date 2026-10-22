@@ -1,13 +1,14 @@
-import { HouseIcon, PlusIcon, ScaleIcon, SettingsIcon } from "lucide-react"
+import { ChartLineIcon, DumbbellIcon, HouseIcon, PlusIcon, SettingsIcon } from "lucide-react"
 import { motion } from "motion/react"
 
 import { cn } from "@/lib/utils"
 
-export type Tab = "today" | "weight" | "settings"
+export type Tab = "today" | "workout" | "progress" | "settings"
 
 const NAV: { id: Tab; label: string; icon: typeof HouseIcon }[] = [
   { id: "today", label: "النهارده", icon: HouseIcon },
-  { id: "weight", label: "الوزن", icon: ScaleIcon },
+  { id: "workout", label: "التمرين", icon: DumbbellIcon },
+  { id: "progress", label: "التقدم", icon: ChartLineIcon },
   { id: "settings", label: "الإعدادات", icon: SettingsIcon },
 ]
 
@@ -41,7 +42,7 @@ export function NavPill({
             onClick={() => onTab(item.id)}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+              "relative flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 lg:px-4",
               active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { toast } from "@/components/ui/toast"
+import { MealActions } from "@/components/meal-actions"
 import { formatTime, num } from "@/lib/format"
 import { MEALS, useMizan, type Entry, type Meal } from "@/store"
 
@@ -46,6 +47,9 @@ export function MealTimeline({ entries, onAdd }: { entries: Entry[]; onAdd: () =
             أضف
           </Button>
         )}
+      </div>
+      <div className="flex flex-wrap gap-2 empty:hidden">
+        <MealActions />
       </div>
 
       {sorted.length === 0 ? (

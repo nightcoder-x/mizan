@@ -27,7 +27,9 @@ export default defineConfig(({ command }) => ({
         theme_color: "#0d0d0f",
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,woff2,wasm}"],
+        // The barcode decoder is about 1 MB; let it be cached for offline scanning.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],

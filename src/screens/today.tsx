@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert"
 import { BlurFade } from "@/components/ui/blur-fade"
 import { Button } from "@/components/ui/button"
+import { CheckInCard, DayTypeToggle, StepsCard, WaterCard } from "@/components/daily-cards"
 import { HeroCard } from "@/components/hero-card"
 import { MealSplitCard } from "@/components/meal-split-card"
 import { MealTimeline } from "@/components/meal-timeline"
@@ -24,6 +25,7 @@ import { StatCard } from "@/components/stat-card"
 import { WeekChart } from "@/components/week-chart"
 import { useIsDesktop } from "@/hooks/use-media-query"
 import { addDays, dateKey, daysBetween, num } from "@/lib/format"
+import { dayTargets, isTrainingDay, loggingStreak, weeklyCheckIn } from "@/lib/insights"
 import { GOALS, sumMacros } from "@/lib/nutrition"
 import { trendChange, withTrend } from "@/lib/weights"
 import { useMizan } from "@/store"
@@ -54,13 +56,22 @@ export function TodayScreen({
   const profile = useMizan((s) => s.profile)
   const allEntries = useMizan((s) => s.entries)
   const weights = useMizan((s) => s.weights)
-  const targets = useMizan((s) => s.targets)
+  const baseTargets = useMizan((s) => s.targets)
   const lastBackupAt = useMizan((s) => s.lastBackupAt)
+  const lastCheckIn = useMizan((s) => s.lastCheckIn)
+  const workouts = useMizan((s) => s.workouts)
+  const trainingDays = useMizan((s) => s.trainingDays)
+  const cycling = useMizan((s) => s.cycling)
   const entries = useMemo(
     () => allEntries.filter((e) => e.date === today),
     [allEntries, today]
   )
   const eaten = sumMacros(entries)
+
+  const training = isTrainingDay(today, workouts, trainingDays)
+  const targets = dayTargets(baseTargets, cycling, training)
+  const streak = loggingStreak(allEntries, today)
+  const checkIn = weeklyCheckIn({ profile, lastCheckIn, entries: allEntries, weights, targets: baseTargets }, today)
 
   const goal = GOALS.find((g) => g.id === profile?.goal)
   const latest = weights[weights.length - 1]
@@ -84,10 +95,26 @@ export function TodayScreen({
         </h1>
         <p className="text-muted-foreground">
           {goal
-            ? `هدفك ${goal.label}: ${num(targets.kcal)} سعرة في اليوم.`
-            : `هدفك ${num(targets.kcal)} سعرة في اليوم.`}
+            ? `هدفك ${goal.label}: ${num(targets.kcal)} سعرة النهارده.`
+            : `هدفك ${num(targets.kcal)} سعرة النهارده.`}
         </p>
+        {(streak >= 2 || cycling.enabled) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            {streak >= 2 && (
+              <span className="rounded-full bg-lime px-3 py-1 text-sm font-semibold text-lime-ink">
+                🔥 {num(streak)} يوم ورا بعض بتسجل
+              </span>
+            )}
+            {cycling.enabled && <DayTypeToggle training={training} />}
+          </div>
+        )}
       </BlurFade>
+
+      {checkIn && (
+        <BlurFade delay={0.03}>
+          <CheckInCard checkIn={checkIn} />
+        </BlurFade>
+      )}
 
       {/* Phone: one column. Laptop: hero, stats and the week side by side. */}
       <div className="grid gap-4 lg:grid-cols-12 lg:gap-6">
@@ -165,7 +192,16 @@ export function TodayScreen({
         </div>
 
         <BlurFade delay={0.26} className="lg:col-span-4">
-          <WeekChart entries={allEntries} target={targets.kcal} />
+          <WeekChart entries={allEntries} target={baseTargets.kcal} />
+        </BlurFade>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:gap-6">
+        <BlurFade delay={0.28} className="h-full">
+          <WaterCard />
+        </BlurFade>
+        <BlurFade delay={0.3} className="h-full">
+          <StepsCard />
         </BlurFade>
       </div>
 

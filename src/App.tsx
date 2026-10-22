@@ -17,13 +17,16 @@ import { SettingsScreen } from "@/screens/settings"
 import { TodayScreen } from "@/screens/today"
 import { useMizan, type Entry } from "@/store"
 
-// The weight chart pulls in recharts, so it loads only when opened.
-const WeightScreen = lazy(() => import("@/screens/weight").then((m) => ({ default: m.WeightScreen })))
+// Charts pull in recharts, so these screens load only when opened.
+const ProgressScreen = lazy(() => import("@/screens/progress").then((m) => ({ default: m.ProgressScreen })))
+const WorkoutScreen = lazy(() => import("@/screens/workout").then((m) => ({ default: m.WorkoutScreen })))
 
-const TABS: Tab[] = ["today", "weight", "settings"]
+const TABS: Tab[] = ["today", "workout", "progress", "settings"]
 
 function readTab(): Tab {
   const hash = window.location.hash.slice(1)
+  // "#weight" was the progress tab's old name.
+  if (hash === "weight") return "progress"
   return TABS.includes(hash as Tab) ? (hash as Tab) : "today"
 }
 
@@ -168,13 +171,13 @@ export function App() {
               <TodayScreen
                 onLog={() => setDrawer("pick")}
                 onWrite={() => setDrawer("write")}
-                onOpenWeight={() => goTo("weight")}
+                onOpenWeight={() => goTo("progress")}
                 onOpenSettings={() => goTo("settings")}
               />
             )}
-            {tab === "weight" && (
+            {(tab === "workout" || tab === "progress") && (
               <Suspense fallback={null}>
-                <WeightScreen />
+                {tab === "workout" ? <WorkoutScreen /> : <ProgressScreen />}
               </Suspense>
             )}
             {tab === "settings" && <SettingsScreen />}

@@ -47,7 +47,8 @@ const RANGES = [
   { id: "all", label: "الكل", days: Infinity },
 ]
 
-export function WeightScreen() {
+/** Weight log, trend chart and history; one section of the progress screen. */
+export function WeightSection() {
   const weights = useMizan((s) => s.weights)
   const logWeight = useMizan((s) => s.logWeight)
   const removeWeight = useMizan((s) => s.removeWeight)
@@ -78,11 +79,7 @@ export function WeightScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="pt-1 text-[1.9rem] font-bold tracking-tight lg:text-[2.6rem]">
-        الوزن
-      </h1>
-
-      {/* Laptop: log and history on one side, the chart large on the other. */}
+{/* Laptop: log and history on one side, the chart large on the other. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start">
         <form
           className="rounded-[1.5rem] lg:col-span-4 lg:border lg:bg-card lg:p-6"
